@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>淡商校園實境闖關</title>
+    <style>
+        :root {
+            --primary-color: #4CAF50;
+            --secondary-color: #2E7D32;
+            --bg-color: #F4F7F6;
+            --card-bg: #FFFFFF;
+            --text-main: #333333;
+            --text-muted: #777777;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            /* 防止下拉更新或過度滾動 */
+            overscroll-behavior-y: none; 
+            padding-bottom: 40px;
+        }
+
+        /* 頂部導覽與進度 */
+        .header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 20px 15px;
+            text-align: center;
+            border-bottom-left-radius: 20px;
+            border-bottom-right-radius: 20px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .header h1 {
+            font-size: 22px;
+            margin-bottom: 10px;
+            letter-spacing: 1px;
+        }
+        .progress-badge {
+            background: rgba(255,255,255,0.2);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            display: inline-block;
+        }
+
+        /* GPS 狀態卡片 */
+        .status-container {
+            margin: -15px 20px 20px 20px;
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            position: relative;
+            z-index: 11;
+        }
+        .pulse-icon {
+            width: 12px;
+            height: 12px;
+            background-color: #f39c12;
+            border-radius: 50%;
+            margin-right: 15px;
+            animation: pulse 1.5s infinite;
+        }
+        .pulse-icon.active { background-color: var(--primary-color); }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(243, 156, 18, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(243, 156, 18, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(243, 156, 18, 0); }
+        }
+        .status-text {
+            font-size: 14px;
+            color: var(--text-muted);
+            line-height: 1.5;
+            flex: 1;
+        }
+        .status-text strong {
+            color: var(--text-main);
+            font-size: 15px;
+        }
+
+        /* 集點章網格 (2x2) */
+        .stamps-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            padding: 0 20px;
+        }
+        .stamp-card {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 20px 10px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            transition: transform 0.2s;
+        }
+        .stamp-image-wrapper {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 10px auto;
+            border: 2px dashed #ccc;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #fafafa;
+        }
+        .stamp-card.completed .stamp-image-wrapper {
+            border-color: transparent;
+            background-color: transparent;
+        }
+        .stamp {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            opacity: 0.15;
+            filter: grayscale(100%);
+            transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform: scale(0.5);
+        }
+        .stamp.active {
+            opacity: 1;
+            filter: grayscale(0%);
+            transform: scale(1.1) rotate(-5deg); /* 蓋章的俏皮感 */
+        }
+        .location-name {
+            font-size: 16px;
+            font-weight: bold;
+            color: var(--text-main);
+        }
+
+        /* 手機版底部彈出視窗 (Bottom Sheet) */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 100;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .modal-overlay.show {
+            display: block;
+            opacity: 1;
+        }
+        .modal-content {
+            position: fixed;
+            bottom: -100%;
+            left: 0;
+            width: 100%;
+            background: white;
+            border-top-left-radius: 25px;
+            border-top-right-radius: 25px;
+            padding: 30px 20px 40px 20px;
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.15);
+            transition: bottom 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            z-index: 101;
+        }
+        .modal-content.show {
+            bottom: 0;
+        }
+        .modal-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .modal-title {
+            color: var(--primary-color);
+            font-size: 22px;
+            margin-bottom: 5px;
+        }
+        .modal-question {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--text-main);
+            margin-bottom: 20px;
+            line-height: 1.4;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 15px;
+            font-size: 16px; /* 16px 防止 iOS 自動縮放 */
+            border: 2px solid #eee;
+            border-radius: 12px;
+            outline: none;
+            transition: border-color 0.2s;
+            text-align: center;
+            background-color: #f9f9f9;
+        }
+        .input-group input:focus {
+            border-color: var(--primary-color);
+            background-color: white;
+        }
+        .btn-submit {
+            width: 100%;
+            padding: 16px;
+            margin-top: 15px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(76, 175, 80, 0.3);
+        }
+        .btn-submit:active {
+            background-color: var(--secondary-color);
+            transform: scale(0.98);
+        }
+
+        /* 提示訊息 (Toast) */
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-size: 15px;
+            z-index: 200;
+            display: none;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+
+        /* 測試按鈕區塊（設計得較隱密） */
+        .dev-tools {
+            margin: 40px 20px 20px 20px;
+            padding: 15px;
+            background: #e9ecef;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .dev-tools summary {
+            font-size: 14px;
+            color: #6c757d;
+            outline: none;
+        }
+        .dev-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .btn-dev {
+            background: #adb5bd;
+            border: none;
+            padding: 10px;
+            border-radius: 8px;
+            color: white;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+
+    <header class="header">
+        <h1>淡商校園實境闖關</h1>
+        <div class="progress-badge">收集進度: <span id="progress-text">0 / 4</span></div>
+    </header>
+
+    <div class="status-container">
+        <div id="gps-pulse" class="pulse-icon"></div>
+        <div class="status-text">
+            <div id="gps-status">正在尋找衛星訊號...</div>
+            <div id="distance-info" style="margin-top: 4px;">請確保已開啟手機定位</div>
+        </div>
+    </div>
+
+    <div class="stamps-grid">
+        <!-- 第1關 -->
+        <div class="stamp-card" id="card-0">
+            <div class="stamp-image-wrapper">
+                <img src="https://i.ibb.co/9H4KPVnx/1.png" id="stamp-0" class="stamp" alt="章1">
+            </div>
+            <div class="location-name">校門口</div>
+        </div>
+        <!-- 第2關 -->
+        <div class="stamp-card" id="card-1">
+            <div class="stamp-image-wrapper">
+                <img src="https://i.ibb.co/RGNqpvVM/2.png" id="stamp-1" class="stamp" alt="章2">
+            </div>
+            <div class="location-name">圖書館</div>
+        </div>
+        <!-- 第3關 -->
+        <div class="stamp-card" id="card-2">
+            <div class="stamp-image-wrapper">
+                <img src="https://i.ibb.co/ZzWNtPmS/3.png" id="stamp-2" class="stamp" alt="章3">
+            </div>
+            <div class="location-name">司令台</div>
+        </div>
+        <!-- 第4關 -->
+        <div class="stamp-card" id="card-3">
+            <div class="stamp-image-wrapper">
+                <img src="https://i.ibb.co/B2q146cR/4.png" id="stamp-3" class="stamp" alt="章4">
+            </div>
+            <div class="location-name">朝陽館</div>
+        </div>
+    </div>
+
+    <!-- 底部彈出視窗 (Modal) -->
+    <div id="modal-overlay" class="modal-overlay" onclick="closeModal(event)"></div>
+    <div id="question-modal" class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title" id="q-location">📍 抵達關卡</h2>
+            <p style="color: #666; font-size: 14px;">請回答下列問題以獲得印章</p>
+        </div>
+        <div class="modal-question" id="q-text">這裡會顯示題目</div>
+        <div class="input-group">
+            <input type="text" id="q-answer" placeholder="點此輸入答案 (免分大小寫)" autocomplete="off">
+        </div>
+        <button class="btn-submit" onclick="checkAnswer()">確認送出</button>
+    </div>
+
+    <!-- 提示訊息 -->
+    <div id="toast" class="toast">訊息提示</div>
+
+    <!-- 開發者工具 -->
+    <details class="dev-tools">
+        <summary>🛠️ 開發者測試模式 (點擊展開)</summary>
+        <div class="dev-grid">
+            <button class="btn-dev" onclick="triggerQuestion(0)">抵達 校門口</button>
+            <button class="btn-dev" onclick="triggerQuestion(1)">抵達 圖書館</button>
+            <button class="btn-dev" onclick="triggerQuestion(2)">抵達 司令台</button>
+            <button class="btn-dev" onclick="triggerQuestion(3)">抵達 朝陽館</button>
+        </div>
+    </details>
+
+    <script>
+        // 關卡資料
+        const stages = [
+            { name: "校門口", lat: 25.18689047488702, lng: 121.45370872056587, question: "資料處理科在商教大樓的幾樓?", answer: "4", completed: false },
+            { name: "圖書館", lat: 25.18720115563875, lng: 121.45529122378215, question: "淡商總共有幾個科系?", answer: "9", completed: false },
+            { name: "司令台", lat: 25.188846537500233, lng: 121.45347000390639, question: "淡商願景是什麼?", answer: "追求自我實現的世界公民", completed: false },
+            { name: "朝陽館", lat: 25.18755285565755, lng: 121.45320714747325, question: "資料科科教官叫什麼名字?", answer: "張君豪", completed: false }
+        ];
+
+        let currentActiveStageIndex = -1;
+        let points = 0;
+        const TRIGGER_DISTANCE_METERS = 30;
+
+        // 計算距離 (Haversine)
+        function getDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371e3; 
+            const p1 = lat1 * Math.PI/180;
+            const p2 = lat2 * Math.PI/180;
+            const dp = (lat2-lat1) * Math.PI/180;
+            const dl = (lon2-lon1) * Math.PI/180;
+            const a = Math.sin(dp/2) * Math.sin(dp/2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl/2) * Math.sin(dl/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        // 啟動 GPS
+        if ("geolocation" in navigator) {
+            navigator.geolocation.watchPosition(
+                function(position) {
+                    const userLat = position.coords.latitude;
+                    const userLng = position.coords.longitude;
+                    
+                    // 改變 GPS 呼吸燈顏色表示活躍
+                    document.getElementById('gps-pulse').classList.add('active');
+                    document.getElementById('gps-pulse').style.backgroundColor = '#4CAF50';
+                    document.getElementById('gps-status').innerHTML = `<strong>定位成功</strong> (精度: ±${Math.round(position.coords.accuracy)}m)`;
+                    
+                    let minDistance = Infinity;
+                    let nearestStage = "";
+
+                    stages.forEach((stage, index) => {
+                        const dist = getDistance(userLat, userLng, stage.lat, stage.lng);
+                        if (dist < minDistance) {
+                            minDistance = dist;
+                            nearestStage = stage.name;
+                        }
+                        // 距離小於30公尺自動觸發
+                        if (dist <= TRIGGER_DISTANCE_METERS && !stage.completed && currentActiveStageIndex === -1) {
+                            triggerQuestion(index);
+                        }
+                    });
+
+                    document.getElementById('distance-info').innerHTML = `離 <strong>${nearestStage}</strong> 約 ${Math.round(minDistance)} 公尺`;
+                },
+                function(error) {
+                    document.getElementById('gps-status').innerHTML = `<strong style="color:red;">定位失敗</strong>`;
+                    document.getElementById('distance-info').innerText = '請至手機設定中允許瀏覽器存取位置。';
+                    document.getElementById('gps-pulse').style.backgroundColor = 'red';
+                },
+                { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+            );
+        } else {
+            document.getElementById('gps-status').innerText = '您的裝置不支援定位功能。';
+        }
+
+        // 自訂 Toast 提示取代 alert
+        function showToast(message, duration = 3000) {
+            const toast = document.getElementById('toast');
+            toast.innerText = message;
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, duration);
+        }
+
+        // 彈出題目 Modal
+        function triggerQuestion(index) {
+            if (stages[index].completed) {
+                showToast("✅ 此關卡您已經收集過了喔！");
+                return;
+            }
+            currentActiveStageIndex = index;
+            const stage = stages[index];
+            
+            document.getElementById('q-location').innerText = `📍 抵達：${stage.name}`;
+            document.getElementById('q-text').innerText = stage.question;
+            document.getElementById('q-answer').value = "";
+            
+            document.getElementById('modal-overlay').classList.add('show');
+            // 延遲一下讓底部面板滑上來有動畫感
+            setTimeout(() => { document.getElementById('question-modal').classList.add('show'); }, 10);
+        }
+
+        // 點擊背景關閉 Modal
+        function closeModal(e) {
+            if(e.target.id === 'modal-overlay') {
+                document.getElementById('question-modal').classList.remove('show');
+                document.getElementById('modal-overlay').classList.remove('show');
+                currentActiveStageIndex = -1;
+            }
+        }
+
+        // 檢查答案
+        function checkAnswer() {
+            if(currentActiveStageIndex === -1) return;
+            
+            const userAnswer = document.getElementById('q-answer').value.trim();
+            const correctAnswer = stages[currentActiveStageIndex].answer;
+
+            if (userAnswer === correctAnswer) {
+                // 答對邏輯
+                showToast("🎉 答對了！獲得一枚印章！");
+                stages[currentActiveStageIndex].completed = true;
+                points++;
+                document.getElementById('progress-text').innerText = `${points} / 4`;
+                
+                // 動畫處理
+                document.getElementById(`card-${currentActiveStageIndex}`).classList.add('completed');
+                document.getElementById(`stamp-${currentActiveStageIndex}`).classList.add('active');
+                
+                // 關閉 Modal
+                document.getElementById('question-modal').classList.remove('show');
+                document.getElementById('modal-overlay').classList.remove('show');
+                currentActiveStageIndex = -1;
+
+                // 檢查是否全破
+                if(points === 4) {
+                    setTimeout(() => { alert("🏆 太棒了！闖關成功！\n您已集滿4點，順利完成校園實境闖關活動！"); }, 800);
+                }
+            } else {
+                // 答錯邏輯
+                showToast("❌ 答案好像不太對，再想一下喔！");
+                // 讓輸入框震動提示錯誤
+                const input = document.getElementById('q-answer');
+                input.style.borderColor = 'red';
+                setTimeout(() => { input.style.borderColor = '#eee'; }, 1000);
+            }
+        }
+    </script>
+</body>
+</html>
+
+
